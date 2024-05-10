@@ -1,14 +1,17 @@
-const electron = require('electron')
-const { Menu, ipcMain } = electron
+// const electron = require('electron')
+
+const { app, Menu, ipcMain, BrowserWindow, screen } = require("electron")
+
+// const { Menu, ipcMain } = electron
 const fs = require('graceful-fs');
 
 // Module to control application life.
-const app = electron.app
+// const app = electron.app
 
 app.commandLine.appendSwitch('--enable-precise-memory-info');
 
 // Module to create native browser window.
-const BrowserWindow = electron.BrowserWindow
+// const BrowserWindow = electron.BrowserWindow
 
 const path = require('path')
 const url = require('url')
@@ -60,7 +63,9 @@ let mainWindow = null;
 var backgroundWindows = [];
 
 // single instance
-const shouldQuit = app.makeSingleInstance((commandLine, workingDirectory) => {
+// app.requestSingleInstanceLock()
+// const shouldQuit = app.makeSingleInstance((commandLine, workingDirectory) => {
+const shouldQuit = app.on('second-instance', (event, commandLine, workigDirectory) => {
   // Someone tried to run a second instance, we should focus our window.
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
@@ -73,22 +78,24 @@ if (shouldQuit) {
 }
 
 function createMainWindow() {
-	
+
   // Create the browser window.
-  const {width, height} = electron.screen.getPrimaryDisplay().workAreaSize;
-  
+  const {width, height} = screen.getPrimaryDisplay().workAreaSize;
+  console.log(width, height)
+
   var frameless = process.platform == 'darwin';
   //var frameless = true;
-  
+
   mainWindow = new BrowserWindow({width: Math.ceil(width*0.9), height: Math.ceil(height*0.9), frame: !frameless, show: false})
 
   // and load the index.html of the app.
-  mainWindow.loadURL(url.format({
+  const result = mainWindow.loadURL(url.format({
     pathname: path.join(__dirname, './main/index.html'),
     protocol: 'file:',
     slashes: true
   }));
-  
+  console.log('loading', path.join(__dirname, './main/index.html'))
+
   mainWindow.setMenu(null);
 
   // Open the DevTools.
@@ -100,7 +107,9 @@ function createMainWindow() {
     // in an array if your app supports multi windows, this is the time
     // when you should delete the corresponding element.
     mainWindow = null
-  }) 
+  })
+
+  console.log('window created')
 }
 
 let winCount = 0;
@@ -112,17 +121,17 @@ function createBackgroundWindows() {
 		var back = new BrowserWindow({
 			show: false
 		});
-		
+
 		//back.webContents.openDevTools();
-		
+
 		back.loadURL(url.format({
 			pathname: path.join(__dirname, './main/background.html'),
 			protocol: 'file:',
 			slashes: true
 		}));
-		
+
 		backgroundWindows[winCount] = back;
-		
+
 		back.once('ready-to-show', () => {
 		  //back.show();
 		  winCount++;
@@ -138,9 +147,10 @@ app.on('ready', () => {
 	createMainWindow();
 	mainWindow.once('ready-to-show', () => {
 	  mainWindow.show();
+    console.log('showing main window')
 	  createBackgroundWindows();
 	})
-	mainWindow.on('closed', () => {
+	mainWindow.on('closing', () => {
 	  app.quit();
 	});
 })
@@ -204,9 +214,9 @@ ipcMain.on('background-stop', function(event){
 		}
 	}
 	winCount = 0;
-	
+
 	createBackgroundWindows();
-	
+
 	console.log('stopped!', backgroundWindows);
 });
 

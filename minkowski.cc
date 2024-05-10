@@ -75,11 +75,11 @@ void convolve_two_polygon_sets(polygon_set& result, const polygon_set& a, const 
   a.get(a_polygons);
   b.get(b_polygons);
   for(std::size_t ai = 0; ai < a_polygons.size(); ++ai) {
-    convolve_point_sequence_with_polygons(result, begin_points(a_polygons[ai]), 
+    convolve_point_sequence_with_polygons(result, begin_points(a_polygons[ai]),
                                           end_points(a_polygons[ai]), b_polygons);
     for(polygon_with_holes_traits<polygon>::iterator_holes_type itrh = begin_holes(a_polygons[ai]);
         itrh != end_holes(a_polygons[ai]); ++itrh) {
-      convolve_point_sequence_with_polygons(result, begin_points(*itrh), 
+      convolve_point_sequence_with_polygons(result, begin_points(*itrh),
                                             end_points(*itrh), b_polygons);
     }
     for(std::size_t bi = 0; bi < b_polygons.size(); ++bi) {
@@ -106,17 +106,18 @@ using namespace boost::polygon;
 NAN_METHOD(calculateNFP) {
   //std::stringstream buffer;
   //std::streambuf * old = std::cout.rdbuf(buffer.rdbuf());
-  
+
   Isolate* isolate = info.GetIsolate();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
   Handle<Object> group = Handle<Object>::Cast(info[0]);
-  Handle<Array> A = Handle<Array>::Cast(group->Get(String::NewFromUtf8(isolate,"A")));
-  Handle<Array> B = Handle<Array>::Cast(group->Get(String::NewFromUtf8(isolate,"B")));
-  
+  Handle<Array> A = Handle<Array>::Cast(group->Get(context, String::NewFromUtf8(isolate,"A").ToLocalChecked()).ToLocalChecked());
+  Handle<Array> B = Handle<Array>::Cast(group->Get(context, String::NewFromUtf8(isolate,"B").ToLocalChecked()).ToLocalChecked());
+
   polygon_set a, b, c;
   std::vector<polygon> polys;
   std::vector<point> pts;
-  
+
   // get maximum bounds for scaling factor
   unsigned int len = A->Length();
   double Amaxx = 0;
@@ -124,122 +125,122 @@ NAN_METHOD(calculateNFP) {
   double Amaxy = 0;
   double Aminy = 0;
   for (unsigned int i = 0; i < len; i++) {
-  	Local<Object> obj = Local<Object>::Cast(A->Get(i));
-  	Amaxx = (std::max)(Amaxx, (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue());
-  	Aminx = (std::min)(Aminx, (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue());
-  	Amaxy = (std::max)(Amaxy, (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue());
-  	Aminy = (std::min)(Aminy, (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue());
+  	Local<Object> obj = A->Get(context, i).ToLocalChecked().As<v8::Object>();
+  	Amaxx = (std::max)(Amaxx, (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+  	Aminx = (std::min)(Aminx, (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+  	Amaxy = (std::max)(Amaxy, (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+  	Aminy = (std::min)(Aminy, (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
   }
-  
+
   len = B->Length();
   double Bmaxx = 0;
   double Bminx = 0;
   double Bmaxy = 0;
   double Bminy = 0;
   for (unsigned int i = 0; i < len; i++) {
-  	Local<Object> obj = Local<Object>::Cast(B->Get(i));
-  	Bmaxx = (std::max)(Bmaxx, (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue());
-  	Bminx = (std::min)(Bminx, (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue());
-  	Bmaxy = (std::max)(Bmaxy, (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue());
-  	Bminy = (std::min)(Bminy, (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue());
+  	Local<Object> obj = Local<Object>::Cast(B->Get(context, i).ToLocalChecked());
+  	Bmaxx = (std::max)(Bmaxx, (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+  	Bminx = (std::min)(Bminx, (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+  	Bmaxy = (std::max)(Bmaxy, (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+  	Bminy = (std::min)(Bminy, (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
   }
-  
+
   double Cmaxx = Amaxx + Bmaxx;
   double Cminx = Aminx + Bminx;
   double Cmaxy = Amaxy + Bmaxy;
   double Cminy = Aminy + Bminy;
-  
+
   double maxxAbs = (std::max)(Cmaxx, std::fabs(Cminx));
   double maxyAbs = (std::max)(Cmaxy, std::fabs(Cminy));
-  
+
   double maxda = (std::max)(maxxAbs, maxyAbs);
   int maxi = std::numeric_limits<int>::max();
-  
+
   if(maxda < 1){
   	maxda = 1;
   }
-  
+
   // why 0.1? dunno. it doesn't screw up with 0.1
   inputscale = (0.1f * (double)(maxi)) / maxda;
-  
+
   //double scale = 1000;
   len = A->Length();
-  
+
   for (unsigned int i = 0; i < len; i++) {
-    Local<Object> obj = Local<Object>::Cast(A->Get(i));
-    int x = (int)(inputscale * (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue());
-    int y = (int)(inputscale * (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue());
-        
+    Local<Object> obj = Local<Object>::Cast(A->Get(context, i).ToLocalChecked());
+    int x = (int)(inputscale * (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+    int y = (int)(inputscale * (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+
     pts.push_back(point(x, y));
   }
-  
+
   polygon poly;
   boost::polygon::set_points(poly, pts.begin(), pts.end());
   a+=poly;
-  
+
   // subtract holes from a here...
-  Handle<Array> holes = Handle<Array>::Cast(A->Get(String::NewFromUtf8(isolate,"children")));
+  Handle<Array> holes = Handle<Array>::Cast(A->Get(context, String::NewFromUtf8(isolate,"children").ToLocalChecked()).ToLocalChecked());
   len = holes->Length();
-  
+
   for(unsigned int i=0; i<len; i++){
-    Handle<Array> hole = Handle<Array>::Cast(holes->Get(i));
+    Handle<Array> hole = Handle<Array>::Cast(holes->Get(context, i).ToLocalChecked());
     pts.clear();
     unsigned int hlen = hole->Length();
     for(unsigned int j=0; j<hlen; j++){
-    	Local<Object> obj = Local<Object>::Cast(hole->Get(j));
-    	int x = (int)(inputscale * (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue());
-    	int y = (int)(inputscale * (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue());
+    	Local<Object> obj = Local<Object>::Cast(hole->Get(context, j).ToLocalChecked());
+    	int x = (int)(inputscale * (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+    	int y = (int)(inputscale * (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
     	pts.push_back(point(x, y));
     }
     boost::polygon::set_points(poly, pts.begin(), pts.end());
     a -= poly;
   }
-  
+
   //and then load points B
   pts.clear();
   len = B->Length();
-  
+
   //javascript nfps are referenced with respect to the first point
   double xshift = 0;
   double yshift = 0;
-  
+
   for (unsigned int i = 0; i < len; i++) {
-    Local<Object> obj = Local<Object>::Cast(B->Get(i));
-    int x = -(int)(inputscale * (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue());
-    int y = -(int)(inputscale * (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue());
+    Local<Object> obj = Local<Object>::Cast(B->Get(context, i).ToLocalChecked());
+    int x = -(int)(inputscale * (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
+    int y = -(int)(inputscale * (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked());
     pts.push_back(point(x, y));
-    
+
     if(i==0){
-    	xshift = (double)obj->Get(String::NewFromUtf8(isolate,"x"))->NumberValue();
-    	yshift = (double)obj->Get(String::NewFromUtf8(isolate,"y"))->NumberValue();
+    	xshift = (*obj->Get(context, String::NewFromUtf8(isolate,"x").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked();
+    	yshift = (*obj->Get(context, String::NewFromUtf8(isolate,"y").ToLocalChecked()).ToLocalChecked().As<v8::Value>())->NumberValue(context).ToChecked();
     }
   }
-  
+
   boost::polygon::set_points(poly, pts.begin(), pts.end());
   b+=poly;
-  
+
   polys.clear();
-  
+
   convolve_two_polygon_sets(c, a, b);
   c.get(polys);
-  
+
   Local<Array> result_list = Array::New(isolate);
-  
+
   for(unsigned int i = 0; i < polys.size(); ++i ){
-      
+
   	Local<Array> pointlist = Array::New(isolate);
   	int j = 0;
-  	  	
+
   	for(polygon_traits<polygon>::iterator_type itr = polys[i].begin(); itr != polys[i].end(); ++itr) {
   	   Local<Object> p = Object::New(isolate);
   	 //  std::cout << (double)(*itr).get(boost::polygon::HORIZONTAL) / inputscale << std::endl;
-       p->Set(String::NewFromUtf8(isolate, "x"), v8::Number::New(isolate, ((double)(*itr).get(boost::polygon::HORIZONTAL)) / inputscale + xshift));
-       p->Set(String::NewFromUtf8(isolate, "y"), v8::Number::New(isolate, ((double)(*itr).get(boost::polygon::VERTICAL)) / inputscale + yshift));
-       
-       pointlist->Set(j, p);
+       p->Set(context, String::NewFromUtf8(isolate, "x").ToLocalChecked(), v8::Number::New(isolate, ((double)(*itr).get(boost::polygon::HORIZONTAL)) / inputscale + xshift));
+       p->Set(context, String::NewFromUtf8(isolate, "y").ToLocalChecked(), v8::Number::New(isolate, ((double)(*itr).get(boost::polygon::VERTICAL)) / inputscale + yshift));
+
+       pointlist->Set(context, j, p);
        j++;
     }
-    
+
     // holes
     Local<Array> children = Array::New(isolate);
     int k = 0;
@@ -248,22 +249,22 @@ NAN_METHOD(calculateNFP) {
     	int z = 0;
     	for(polygon_traits<polygon>::iterator_type itr2 = (*itrh).begin(); itr2 != (*itrh).end(); ++itr2) {
     		Local<Object> c = Object::New(isolate);
-    		c->Set(String::NewFromUtf8(isolate, "x"), v8::Number::New(isolate, ((double)(*itr2).get(boost::polygon::HORIZONTAL)) / inputscale + xshift));
-    		c->Set(String::NewFromUtf8(isolate, "y"), v8::Number::New(isolate, ((double)(*itr2).get(boost::polygon::VERTICAL)) / inputscale + yshift));
-    		
-    		child->Set(z, c);
+    		c->Set(context, String::NewFromUtf8(isolate, "x").ToLocalChecked(), v8::Number::New(isolate, ((double)(*itr2).get(boost::polygon::HORIZONTAL)) / inputscale + xshift));
+    		c->Set(context, String::NewFromUtf8(isolate, "y").ToLocalChecked(), v8::Number::New(isolate, ((double)(*itr2).get(boost::polygon::VERTICAL)) / inputscale + yshift));
+
+    		child->Set(context, z, c);
     		z++;
     	}
-    	children->Set(k, child);
+    	children->Set(context, k, child);
     	k++;
     }
-    
-    pointlist->Set(String::NewFromUtf8(isolate, "children"), children);
-    
-    result_list->Set(i, pointlist);
+
+    pointlist->Set(context, String::NewFromUtf8(isolate, "children").ToLocalChecked(), children);
+
+    result_list->Set(context, i, pointlist);
   }
-  
+
   //std::string text = buffer.str();
-  
-  info.GetReturnValue().Set(result_list);  
+
+  info.GetReturnValue().Set(result_list);
 }
